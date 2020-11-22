@@ -1,6 +1,6 @@
 # Crazyflie 2.x STM32 bootloader in Rust
 
-Experimental re-implementation of the [crazyflie2-stm-bootloader](https://github.com/bitcraze/crazyflie2-nrf-firmware)
+Experimental re-implementation of the [crazyflie2-stm-bootloader](https://github.com/bitcraze/crazyflie2-stm-bootloader)
 written in Rust.
 
 ## Compiling and running
