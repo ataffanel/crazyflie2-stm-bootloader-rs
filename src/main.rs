@@ -8,6 +8,8 @@ use stm32f4xx_hal as hal;
 
 use crate::hal::{prelude::*, stm32};
 
+mod syslink;
+
 #[cortex_m_rt::entry]
 fn main() -> ! {
     defmt::info!("Hello, {:?} world!", 42);
@@ -25,18 +27,41 @@ fn main() -> ! {
 
         // Setup system clock
         let rcc = dp.RCC.constrain();
-        let clocks = rcc.cfgr.sysclk(48.mhz()).freeze();
+        let clocks = rcc.cfgr.sysclk(168.mhz()).freeze();
 
-        let mut delay = hal::delay::Delay::new(cp.SYST, clocks);
-
-        // Wait a bit and check boot pin
-        delay.delay_ms(1u32);
-        if nrf_flow_control.is_low().unwrap() {
+        // Setup a 2Hz asynchronous timer using systick (to blink the LED)
+        let mut timer = hal::timer::Timer::tim1(dp.TIM1, 2.hz(), clocks);
+        
+        // Check boot pin and check if the firmware is not in an erased sector
+        if nrf_flow_control.is_low().unwrap() && get_firmware_stack_pointer() != 0xffff_ffff {
             boot_firmware(cp.SCB);
         } else {
+
+            // Setup UART to nRF51
+            let gpioc = dp.GPIOC.split();
+            
+            let tx = gpioc.pc6.into_alternate_af8();
+            let rx = gpioc.pc7.into_alternate_af8();
+
+            let serial = hal::serial::Serial::usart6(
+                dp.USART6, (tx, rx), 
+                hal::serial::config::Config::default().baudrate(1000000.bps()),
+                clocks).unwrap();
+
+            let (tx, rx) = serial.split();
+            
+            // Create syslink handler
+            let mut syslink = syslink::Syslink::new(rx, tx);
+            
+            // Main loop
             loop {
-                blue_led.toggle().unwrap();
-                delay.delay_ms(500_u32);
+                if let Ok(packet) = syslink.receive() {
+                    defmt::info!("Received packet of type {:u8} and size {:?}", packet.packet_type, packet.length);
+                }
+
+                if let Ok(_) = timer.wait() {
+                    blue_led.toggle().unwrap();
+                }
             }    
         }
 
@@ -54,5 +79,12 @@ fn boot_firmware(scb: cortex_m::peripheral::SCB) -> ! {
         scb.vtor.write(0x08004000);
         cortex_m::register::msp::write(*firmware_stack);
         (*firmware_entry)();
+    }
+}
+
+fn get_firmware_stack_pointer() -> u32{
+    unsafe {
+        let firmware_stack = 0x08004000 as *const u32;
+        *firmware_stack
     }
 }
