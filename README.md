@@ -3,6 +3,9 @@
 Experimental re-implementation of the [crazyflie2-stm-bootloader](https://github.com/bitcraze/crazyflie2-stm-bootloader)
 written in Rust.
 
+This firmware is not working yet.
+The goal is to implement a working bootloader replacement, mostly as a way to learn Rust on embedded systems.
+
 ## Compiling and running
 
 A debug probe connected to the Crazyflie using the debug adapter board is required to work on the bootloader.
@@ -14,7 +17,12 @@ It is assumed that rust has been installed using [rustup](https://rustup.rs).
 On ubuntu the required dependencies can be installed with:
 ```
 sudo apt install build-essential libusb-1.0-0-dev pkg-config
+```
 
+On Mac and Windows no extra dependencies should be needed.
+
+The required rust tool and target can be installed with:
+```
 cargo install flip-link
 cargo install probe-run
 
