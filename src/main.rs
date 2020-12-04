@@ -8,6 +8,7 @@ use stm32f4xx_hal as hal;
 
 use crate::hal::{prelude::*, stm32};
 
+mod flash;
 mod syslink;
 
 #[cortex_m_rt::entry]
