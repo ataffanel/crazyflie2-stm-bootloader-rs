@@ -12,6 +12,7 @@ defmt-rtt = "0.1.0"
 panic-probe = { version = "0.1.0", features = ["print-defmt"] }
 embedded-hal = "0.2.4"
 nb = "1.0"
+heapless = "0.5"
 
 [dependencies.stm32f4xx-hal]
 version = "0.8"
@@ -46,5 +47,5 @@ debug = 2
 debug-assertions = false # <-
 incremental = false
 lto = 'fat'
-opt-level = 3 # <-
+opt-level = 's' # <-
 overflow-checks = false # <-

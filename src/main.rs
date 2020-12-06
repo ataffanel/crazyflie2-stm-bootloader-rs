@@ -6,10 +6,67 @@ use crazyflie2_stm_bootloader as _; // global logger + panicking-behavior + memo
 use cortex_m;
 use stm32f4xx_hal as hal;
 
-use crate::hal::{prelude::*, stm32};
+use crate::hal::{prelude::*, stm32, stm32::{interrupt, Interrupt}};
+use stm32f4xx_hal::stm32::USART6;
+
+use core::cell::RefCell;
+use cortex_m::interrupt::Mutex;
+
+use heapless::{spsc::{Queue, Producer, Consumer}};
+use heapless::consts::*;
 
 mod flash;
 mod syslink;
+
+static USART_RX: Mutex<RefCell<Option<hal::serial::Rx<USART6>>>> = Mutex::new(RefCell::new(None));
+static mut USART_QUEUE: Queue<u8, U64, usize> = Queue(heapless::i::Queue::new());
+
+#[interrupt]
+fn USART6() {
+    static mut RX: Option<hal::serial::Rx<USART6>> = None;
+    static mut QUEUE: Option<Producer<u8, U64, usize>> = None;
+
+    let rx = RX.get_or_insert_with(|| {
+        cortex_m::interrupt::free(|cs| {
+            USART_RX.borrow(cs).replace(None).unwrap()
+        })
+    });
+
+    let queue = QUEUE.get_or_insert_with(|| {
+            unsafe { USART_QUEUE.split().0 }
+    });
+
+    let data = rx.read().unwrap();
+    if queue.ready() {
+        queue.enqueue(data).unwrap();
+    }
+}
+
+struct QueuedRead<'a>  {
+    rx_queue: Consumer<'a, u8, U64, usize>,
+}
+
+impl QueuedRead<'_> {
+    fn new() -> Self {
+        let consumer = unsafe { USART_QUEUE.split().1 };
+
+        QueuedRead {
+            rx_queue: consumer
+        }
+    }
+}
+
+impl embedded_hal::serial::Read<u8> for QueuedRead<'_> {
+    type Error = ();
+
+    fn read(&mut self) -> nb::Result<u8, Self::Error> {
+        if self.rx_queue.ready() {
+            Ok(self.rx_queue.dequeue().unwrap())
+        } else {
+            Err(nb::Error::WouldBlock)
+        }
+    }
+}
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
@@ -44,20 +101,37 @@ fn main() -> ! {
             let tx = gpioc.pc6.into_alternate_af8();
             let rx = gpioc.pc7.into_alternate_af8();
 
-            let serial = hal::serial::Serial::usart6(
+            let mut serial = hal::serial::Serial::usart6(
                 dp.USART6, (tx, rx), 
                 hal::serial::config::Config::default().baudrate(1000000.bps()),
                 clocks).unwrap();
+            
+            // Enable RX Not Empty interrupt
+            serial.listen(hal::serial::Event::Rxne);
 
             let (tx, rx) = serial.split();
+
+            // Pass RX side to the interrupt via a static variable
+            cortex_m::interrupt::free(|cs| *USART_RX.borrow(cs).borrow_mut() = Some(rx));
+
+            // Create queued-read object that reads from the global RX queue
+            let rx = QueuedRead::new();
+
+            // Enable USART6 interrupt
+            unsafe { cortex_m::peripheral::NVIC::unmask(Interrupt::USART6); }
             
             // Create syslink handler
             let mut syslink = syslink::Syslink::new(rx, tx);
             
             // Main loop
             loop {
-                if let Ok(packet) = syslink.receive() {
+                if let Ok(mut packet) = syslink.receive() {
                     defmt::info!("Received packet of type {:u8} and size {:?}", packet.packet_type, packet.length);
+                    if packet.length > 1 {
+                        packet.set_checksum();
+                        nb::block!(syslink.send(&packet)).unwrap();
+                    }
+                    
                 }
 
                 if let Ok(_) = timer.wait() {

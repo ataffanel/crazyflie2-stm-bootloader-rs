@@ -21,7 +21,7 @@ impl Default for SyslinkPacket {
 }
 
 impl SyslinkPacket {
-    fn check_checksum(&self) -> bool {
+    fn calculate_checksum(&self) -> (u8, u8) {
         let mut a = self.packet_type;
         let mut b = a;
 
@@ -37,10 +37,20 @@ impl SyslinkPacket {
             b = b.wrapping_add(a);
         }
 
+        (a, b)
+    }
+
+    pub fn set_checksum(&mut self) {
+        let (a, b) = self.calculate_checksum();
+
+        self.cksum = (a as u16) + ((b as u16) << 8);
+    }
+
+    fn check_checksum(&self) -> bool {
+        let (a, b) = self.calculate_checksum();
+
         let checksum: u16 = (a as u16) + ((b as u16) << 8);
         
-        // defmt::info!("cksum: {:u16}, calculated: {:u16}, {:u8} {:u8}", self.cksum, checksum, b, a);
-
         checksum == self.cksum
     }
 }
@@ -75,12 +85,25 @@ impl <RX: serial::Read<u8>, TX: serial::Write<u8>> Syslink<RX, TX>  {
         }
     }
 
+    pub fn send(&mut self, packet: &SyslinkPacket) -> nb::Result<(), nb::Error<()>> {
+        nb::block!(self.tx.write(0xbc)).ok();
+        nb::block!(self.tx.write(0xcf)).ok();
+        nb::block!(self.tx.write(packet.packet_type)).ok();
+        nb::block!(self.tx.write(packet.length as u8)).ok();
+
+        for datab in &packet.buffer[..packet.length] {
+            nb::block!(self.tx.write(*datab)).ok();
+        }
+
+        nb::block!(self.tx.write((packet.cksum & 0x00ff) as u8)).ok();
+        nb::block!(self.tx.write((packet.cksum >> 8) as u8)).ok();
+
+        Ok(())
+    }
+
     pub fn receive(&mut self) -> nb::Result<SyslinkPacket, nb::Error<()>> {
 
         if let Ok(b) = self.rx.read() {
-
-            // defmt::info!("{:?}: {:u8}", self.state, b);
-
             match self.state {
                 State::ReadBC => {
                     self.received_bytes = 0;
