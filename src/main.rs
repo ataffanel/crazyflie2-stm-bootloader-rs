@@ -17,6 +17,7 @@ use heapless::consts::*;
 
 mod flash;
 mod syslink;
+mod protocol;
 
 static USART_RX: Mutex<RefCell<Option<hal::serial::Rx<USART6>>>> = Mutex::new(RefCell::new(None));
 static mut USART_QUEUE: Queue<u8, U64, usize> = Queue(heapless::i::Queue::new());
@@ -36,9 +37,10 @@ fn USART6() {
             unsafe { USART_QUEUE.split().0 }
     });
 
-    let data = rx.read().unwrap();
-    if queue.ready() {
-        queue.enqueue(data).unwrap();
+    if let Ok(data) = rx.read() {
+        if queue.ready() {
+            queue.enqueue(data).unwrap();
+        }
     }
 }
 
@@ -122,12 +124,18 @@ fn main() -> ! {
             
             // Create syslink handler
             let mut syslink = syslink::Syslink::new(rx, tx);
+
+            // Flash access
+            let mut flash = flash::Flash::new(dp.FLASH);
+
+            // Buffer to hold data to be flashed
+            let mut buffer: [[u8; 1024]; 10] = [[0u8; 1024]; 10];
             
             // Main loop
             loop {
                 if let Ok(mut packet) = syslink.receive() {
-                    defmt::info!("Received packet of type {:u8} and size {:?}", packet.packet_type, packet.length);
-                    if packet.length > 1 {
+                    // defmt::info!("Received packet of type {:u8} and size {:?}", packet.packet_type, packet.length);
+                    if protocol::handle_packet(&mut packet, &mut buffer, &mut flash) {
                         packet.set_checksum();
                         nb::block!(syslink.send(&packet)).unwrap();
                     }

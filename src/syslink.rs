@@ -119,7 +119,9 @@ impl <RX: serial::Read<u8>, TX: serial::Write<u8>> Syslink<RX, TX>  {
                 },
                 State::ReadLen => {
                     self.received_packet.length = b as usize;
-                    if self.received_packet.length > 0 {
+                    if self.received_packet.length > 32 {
+                        self.state = State::ReadBC;
+                    } else if self.received_packet.length > 0 {
                         self.state = State::ReadData;
                     } else {
                         self.state = State::ReadCK0;
