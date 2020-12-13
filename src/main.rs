@@ -91,7 +91,7 @@ fn main() -> ! {
 
         // Setup a 2Hz asynchronous timer using systick (to blink the LED)
         let mut timer = hal::timer::Timer::tim1(dp.TIM1, 2.hz(), clocks);
-        
+
         // Check boot pin and check if the firmware is not in an erased sector
         if nrf_flow_control.is_low().unwrap() && get_firmware_stack_pointer() != 0xffff_ffff {
             boot_firmware(cp.SCB);
@@ -102,6 +102,16 @@ fn main() -> ! {
             
             let tx = gpioc.pc6.into_alternate_af8();
             let rx = gpioc.pc7.into_alternate_af8();
+
+            // Timer to blink link leds
+            let mut led_timer = hal::timer::Timer::tim2(dp.TIM2, 100.hz(), clocks);
+
+            // initialize link leds
+            let mut led_red_l = gpioc.pc0.into_push_pull_output();
+            let mut led_green_l = gpioc.pc1.into_push_pull_output();
+
+            // Rx and Tx variables, holds if there has been rx or tx since last LED drive
+            let (mut has_rx, mut has_tx) = (false, false);
 
             let mut serial = hal::serial::Serial::usart6(
                 dp.USART6, (tx, rx), 
@@ -134,16 +144,37 @@ fn main() -> ! {
             // Main loop
             loop {
                 if let Ok(mut packet) = syslink.receive() {
+                    has_rx = true;
+
                     // defmt::info!("Received packet of type {:u8} and size {:?}", packet.packet_type, packet.length);
                     if protocol::handle_packet(&mut packet, &mut buffer, &mut flash) {
                         packet.set_checksum();
                         nb::block!(syslink.send(&packet)).unwrap();
+
+                        has_tx = true;
                     }
                     
                 }
 
                 if let Ok(_) = timer.wait() {
                     blue_led.toggle().unwrap();
+                }
+
+                // Blink link LEDs on link activity
+                if let Ok(_) = led_timer.wait() {
+                    led_green_l.set_high().unwrap();
+                    led_red_l.set_high().unwrap();
+
+                    if has_rx {
+                        led_green_l.set_low().unwrap();
+                    }
+
+                    if has_tx {
+                        led_red_l.set_low().unwrap();
+                    }
+
+                    has_rx = false;
+                    has_tx = false;
                 }
             }    
         }
