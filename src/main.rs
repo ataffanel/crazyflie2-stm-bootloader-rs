@@ -75,27 +75,27 @@ fn main() -> ! {
     defmt::info!("Hello, {:?} world!", 42);
 
     if let (Some(dp), Some(cp)) = (stm32::Peripherals::take(), cortex_m::peripheral::Peripherals::take()) {
-        // Setup LED
-        let gpiod = dp.GPIOD.split();
-        let mut blue_led = gpiod.pd2.into_push_pull_output();
-
-        blue_led.set_low().unwrap();
-
         // Serup boot control pin/nrf flow control pin
         let gpioa = dp.GPIOA.split();
         let nrf_flow_control = gpioa.pa4.into_pull_down_input();
-
-        // Setup system clock
-        let rcc = dp.RCC.constrain();
-        let clocks = rcc.cfgr.sysclk(168.mhz()).freeze();
-
-        // Setup a 2Hz asynchronous timer using systick (to blink the LED)
-        let mut timer = hal::timer::Timer::tim1(dp.TIM1, 2.hz(), clocks);
 
         // Check boot pin and check if the firmware is not in an erased sector
         if nrf_flow_control.is_low().unwrap() && get_firmware_stack_pointer() != 0xffff_ffff {
             boot_firmware(cp.SCB);
         } else {
+            // Setup LED
+            let gpiod = dp.GPIOD.split();
+            let mut blue_led = gpiod.pd2.into_push_pull_output();
+
+            // Switch ON blue led
+            blue_led.set_low().unwrap();
+
+            // Setup system clock
+            let rcc = dp.RCC.constrain();
+            let clocks = rcc.cfgr.sysclk(168.mhz()).freeze();
+
+            // Setup a 2Hz asynchronous timer using systick (to blink the LED)
+            let mut timer = hal::timer::Timer::tim1(dp.TIM1, 2.hz(), clocks);
 
             // Setup UART to nRF51
             let gpioc = dp.GPIOC.split();
