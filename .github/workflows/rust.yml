@@ -19,7 +19,7 @@ jobs:
     - name: Install apt dependencies
       run: sudo apt-get install -y build-essential libusb-1.0-0-dev pkg-config
     - name: Install rust target
-      run: rustup add thumbv7em-none-eabihf
+      run: rustup target add thumbv7em-none-eabihf
     - name: Install flip-link
       run: cargo install flip-link
     - name: Build
