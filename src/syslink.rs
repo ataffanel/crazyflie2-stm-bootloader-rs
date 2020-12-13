@@ -1,5 +1,6 @@
 
 use embedded_hal::serial;
+use embedded_hal::digital::v2::InputPin;
 
 #[derive(Clone)]
 pub struct SyslinkPacket {
@@ -66,20 +67,21 @@ enum State {
     ReadCK1,
 }
 
-pub struct Syslink<RX: serial::Read<u8>, TX: serial::Write<u8>> {
+pub struct Syslink<RX: serial::Read<u8>, TX: serial::Write<u8>, CTS: InputPin> {
     state: State,
     rx: RX,
     tx: TX,
+    cts: CTS,
     received_packet: SyslinkPacket,
     received_bytes: usize,
 }
 
-impl <RX: serial::Read<u8>, TX: serial::Write<u8>> Syslink<RX, TX>  {
+impl <RX: serial::Read<u8>, TX: serial::Write<u8>, CTS: InputPin> Syslink<RX, TX, CTS>  {
 
-    pub fn new(rx: RX, tx: TX) -> Self {
+    pub fn new(rx: RX, tx: TX, cts: CTS) -> Self {
         Syslink {
             state: State::ReadBC,
-            rx, tx,
+            rx, tx, cts,
             received_packet: SyslinkPacket::default(),
             received_bytes: 0,
         }
@@ -92,6 +94,9 @@ impl <RX: serial::Read<u8>, TX: serial::Write<u8>> Syslink<RX, TX>  {
         nb::block!(self.tx.write(packet.length as u8)).ok();
 
         for datab in &packet.buffer[..packet.length] {
+            // Wait for CTS to be low (ie. it is clear to send)
+            while self.cts.is_high().ok().unwrap() {}
+
             nb::block!(self.tx.write(*datab)).ok();
         }
 

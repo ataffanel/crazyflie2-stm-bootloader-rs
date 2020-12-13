@@ -123,7 +123,7 @@ fn main() -> ! {
             unsafe { cortex_m::peripheral::NVIC::unmask(Interrupt::USART6); }
             
             // Create syslink handler
-            let mut syslink = syslink::Syslink::new(rx, tx);
+            let mut syslink = syslink::Syslink::new(rx, tx, nrf_flow_control);
 
             // Flash access
             let mut flash = flash::Flash::new(dp.FLASH);
