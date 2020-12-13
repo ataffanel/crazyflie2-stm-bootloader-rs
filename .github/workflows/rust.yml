@@ -1,0 +1,25 @@
+name: Rust
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install dependencies
+      run: |
+        apt install build-essential libusb-1.0-0-dev pkg-config
+        rustup add thumbv7em-none-eabihf
+        cargo install flip-link
+    - name: Build
+      run: cargo build --release --verbose
