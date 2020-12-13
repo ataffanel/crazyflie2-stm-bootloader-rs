@@ -3,7 +3,7 @@
 Experimental re-implementation of the [crazyflie2-stm-bootloader](https://github.com/bitcraze/crazyflie2-stm-bootloader)
 written in Rust.
 
-This firmware is not working yet.
+This firmware currently implements just enough commands to be able to flash the Crazyflie when running "make cload" in the crazyflie firmware project.
 The goal is to implement a working bootloader replacement, mostly as a way to learn Rust on embedded systems.
 
 ## Compiling and running
@@ -14,9 +14,9 @@ An ST-Link v2 works, any probe supported by probe-run should work fine.
 Compiling and running requires rust, probe-run and flip-link.
 It is assumed that rust has been installed using [rustup](https://rustup.rs).
 
-On ubuntu the required dependencies can be installed with:
+On ubuntu/Debian/Raspberry pi OS the required dependencies can be installed with (openocd is only required to install udev rules for common jtag/swd probes):
 ```
-sudo apt install build-essential libusb-1.0-0-dev pkg-config
+sudo apt install build-essential libusb-1.0-0-dev pkg-config openocd
 ```
 
 On Mac and Windows no extra dependencies should be needed.
