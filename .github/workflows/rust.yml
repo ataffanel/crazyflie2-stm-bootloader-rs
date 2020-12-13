@@ -18,8 +18,8 @@ jobs:
     - uses: actions/checkout@v2
     - name: Install dependencies
       run: |
-        sudo apt install build-essential libusb-1.0-0-dev pkg-config
-        rustup add thumbv7em-none-eabihf
+        sudo apt install build-essential libusb-1.0-0-dev pkg-config;
+        rustup add thumbv7em-none-eabihf;
         cargo install flip-link
     - name: Build
       run: cargo build --release --verbose
