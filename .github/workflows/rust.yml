@@ -23,4 +23,8 @@ jobs:
     - name: Install flip-link
       run: cargo install flip-link
     - name: Build
-      run: cargo build --release --verbose
+      run: cargo build --release
+    - uses: actions/upload-artifact@v2
+      with:
+        name: crazyflie2-stm-bootloader
+        path: target/thumbv7em-none-eabihf/release/crazyflie2-stm-bootloader
